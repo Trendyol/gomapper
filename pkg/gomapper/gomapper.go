@@ -34,7 +34,7 @@ func getDefaultMapOptions() *MapOptions {
 
 // Map uses parametric options to fill out the fields in dest with values from source.
 // If options does not provided it uses default map options.
-// Embedded/anonymous structs are supported
+// Embedded/anonymous structs are supported.
 // Values that are not exported/not public will not be mapped.
 func Map(source, dest any, opts ...*MapOptions) error {
 	mapOptions, err := validateMapOptions(opts...)
