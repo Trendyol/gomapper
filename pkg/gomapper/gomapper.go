@@ -15,36 +15,33 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Map fills out the fields in dest with values from source. All fields in the
-// destination object must exist in the source object.
-//
-// Object hierarchies with nested structs and slices are supported, as long as
-// type types of nested structs/slices follow the same rules, i.e. all fields
-// in destination structs must be found on the source struct.
-//
+type MapOptions struct {
+	// If this is false(default); It doesn't fail
+	// when the destination type contains fields not supplied by the source.
+	// If this is true; All fields in the
+	// destination object must exist in the source object.
+	// Object hierarchies with nested structs and slices are supported, as long as
+	// type types of nested structs/slices follow the same rules, i.e. all fields
+	// in destination structs must be found on the source struct.
+	Exact bool
+}
+
+func getDefaultMapOptions() *MapOptions {
+	return &MapOptions{
+		Exact: false,
+	}
+}
+
+// Map uses parametric options to fill out the fields in dest with values from source.
+// If options does not provided it uses default map options.
 // Embedded/anonymous structs are supported
-//
 // Values that are not exported/not public will not be mapped.
-//
-// It is a design decision to panic when a field cannot be mapped in the
-// destination to ensure that a renamed field in either the source or
-// destination does not result in subtle silent bug.
-func Map(source, dest any) error {
-	return mapCommon(source, dest, false)
-}
+func Map(source, dest any, opts ...*MapOptions) error {
+	mapOptions, err := validateMapOptions(opts...)
+	if err != nil {
+		return err
+	}
 
-// MapLoose works just like Map, except it doesn't fail when the destination
-// type contains fields not supplied by the source.
-//
-// This function is meant to be a temporary solution - the general idea is
-// that the Map function should take a number of options that can modify its
-// behavior - but I'd rather not add that functionality before I have a better
-// idea what is a good options format.
-func MapLoose(source, dest any) error {
-	return mapCommon(source, dest, true)
-}
-
-func mapCommon(source, dest any, loose bool) error {
 	if IsAnyNil(source) {
 		return errors.New("source must not be nil")
 	}
@@ -65,7 +62,23 @@ func mapCommon(source, dest any, loose bool) error {
 
 	var destVal = reflect.ValueOf(dest).Elem()
 
-	return mapValues(sourceVal, destVal, loose)
+	return mapValues(sourceVal, destVal, !mapOptions.Exact)
+}
+
+func validateMapOptions(opts ...*MapOptions) (*MapOptions, error) {
+	if len(opts) > 1 {
+		return nil, errors.New("function accepts only one option as a parameter")
+	}
+
+	var mapOptions *MapOptions
+
+	if len(opts) == 0 {
+		mapOptions = getDefaultMapOptions()
+	} else {
+		mapOptions = opts[0]
+	}
+
+	return mapOptions, nil
 }
 
 func mapValues(sourceVal, destVal reflect.Value, loose bool) error {

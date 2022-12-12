@@ -48,25 +48,25 @@ func Test_Source_Must_Not_Nil(t *testing.T) {
 
 	dest := &X{}
 
-	err := MapLoose(source, dest)
+	err := Map(source, dest)
 	assert.NotNil(t, err)
 
-	err = MapLoose(nil, dest)
+	err = Map(nil, dest)
 	assert.NotNil(t, err)
 }
 
 func Test_Dest_Must_Not_Nil(t *testing.T) {
 	dest := (*X)(nil)
 
-	err := MapLoose(X{}, dest)
+	err := Map(X{}, dest)
 	assert.NotNil(t, err)
 
-	err = MapLoose(X{}, nil)
+	err = Map(X{}, nil)
 	assert.NotNil(t, err)
 }
 
 func Test_Dest_Must_Be_Pointer(t *testing.T) {
-	err := MapLoose(X{}, X{})
+	err := Map(X{}, X{})
 	assert.NotNil(t, err)
 }
 
@@ -82,7 +82,7 @@ func Test_X_To_X_Map_Loose(t *testing.T) {
 
 	dest := &X{}
 
-	if err := MapLoose(source, dest); err != nil {
+	if err := Map(source, dest); err != nil {
 		t.Error(err.Error())
 		return
 	}
@@ -105,7 +105,7 @@ func Test_X_To_XPointerField_Map_Loose(t *testing.T) {
 
 	dest := &XPointerField{}
 
-	if err := MapLoose(source, dest); err != nil {
+	if err := Map(source, dest); err != nil {
 		t.Error(err)
 		return
 	}
@@ -131,7 +131,7 @@ func Test_X_To_XPointerField_Map(t *testing.T) {
 
 	dest := &XPointerField{}
 
-	err := Map(source, dest)
+	err := Map(source, dest, &MapOptions{Exact: true})
 	assert.NotNil(t, err)
 }
 
@@ -142,7 +142,7 @@ func Test_Y_To_Z_Map_Loose(t *testing.T) {
 
 	dest := &Z{}
 
-	if err := MapLoose(source, dest); err != nil {
+	if err := Map(source, dest); err != nil {
 		t.Error(err.Error())
 	}
 
