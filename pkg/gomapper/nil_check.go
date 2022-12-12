@@ -2,7 +2,7 @@ package gomapper
 
 import "reflect"
 
-func IsAnyNil(x any) bool {
+func isAnyNil(x any) bool {
 	if x == nil {
 		return true
 	}
@@ -15,6 +15,6 @@ func IsAnyNil(x any) bool {
 	return false
 }
 
-func ReflectValueIsNil(value reflect.Value) bool {
+func reflectValueIsNil(value reflect.Value) bool {
 	return value.Type().Kind() == reflect.Ptr && value.IsNil()
 }

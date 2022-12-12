@@ -42,11 +42,11 @@ func Map(source, dest any, opts ...*MapOptions) error {
 		return err
 	}
 
-	if IsAnyNil(source) {
+	if isAnyNil(source) {
 		return errors.New("source must not be nil")
 	}
 
-	if IsAnyNil(dest) {
+	if isAnyNil(dest) {
 		return errors.New("dest must not be nil")
 	}
 
@@ -110,7 +110,7 @@ func mapValues(sourceVal, destVal reflect.Value, loose bool) error {
 
 		return nil
 	} else if destType.Kind() == reflect.Ptr {
-		if ReflectValueIsNil(sourceVal) {
+		if reflectValueIsNil(sourceVal) {
 			return nil
 		}
 		val := reflect.New(destType.Elem())
@@ -205,7 +205,7 @@ func valueIsContainedInNilEmbeddedType(source reflect.Value, fieldName string) b
 	ix := structField.Index
 	if len(structField.Index) > 1 {
 		parentField := source.FieldByIndex(ix[:len(ix)-1])
-		if ReflectValueIsNil(parentField) {
+		if reflectValueIsNil(parentField) {
 			return true
 		}
 	}
