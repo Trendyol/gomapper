@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/pkg/errors"
+	"errors"
 )
 
 type MapOptions struct {
@@ -172,9 +172,8 @@ func mapField(source, destVal reflect.Value, i int, loose bool) error {
 		if loose {
 			return nil
 		} else {
-			return errors.New(
-				fmt.Sprintf("error mapping field: %s. Field can not set! DestType: %v SourceType: %v",
-					fieldName, destType, source.Type()))
+			return fmt.Errorf("error mapping field: %s. Field can not set! DestType: %v SourceType: %v",
+				fieldName, destType, source.Type())
 		}
 	}
 
@@ -191,9 +190,8 @@ func mapField(source, destVal reflect.Value, i int, loose bool) error {
 				return nil
 			}
 
-			return errors.New(
-				fmt.Sprintf("error mapping field: %s. SourceType: %v does not contain related field. DestType: %v",
-					fieldName, source.Type(), destType))
+			return fmt.Errorf("error mapping field: %s. SourceType: %v does not contain related field. DestType: %v",
+				fieldName, source.Type(), destType)
 		}
 
 		return mapValues(sourceField, destField, loose)

@@ -4,9 +4,9 @@
 An auto mapping tool for Golang dtos.
 (Originally inspired by https://github.com/stroiman/go-automapper)
 
-Example usage:\
-Declare your types:
+Examples:
 
+Declare your types:
 ```go
     type A struct {
     	Name string
