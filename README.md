@@ -8,39 +8,41 @@ An auto mapping tool for Golang dtos.
 Examples:
 
 Declare your types:
+
 ```go
     type A struct {
-    	Name string
-    	zone []string
+        Name string
+        zone []string
     }
 
     type X struct {
-    	Ui64 uint64
-    	i64  int64
-    	A    A
+        Ui64 uint64
+        i64  int64
+        A    A
     }
 
     type Y struct {
-    	Ui64 uint64
-    	i64  int64
-    	A    *A
+        Ui64 uint64
+        i64  int64
+        A    *A
     }
 ```
 
 Use Map function:
+
 ```go
-	source := X{
-		Ui64: 123,
-		i64:  321,
-		A: A{
-			Name: "abc",
-			zone: []string{"k", "l", "m"},
-		},
-	}
+    source := X{
+        Ui64: 123,
+        i64:  321,
+        A: A{
+	    Name: "abc",
+	    zone: []string{"k", "l", "m"},
+	},
+    }
 
-	dest := &Y{}
+    dest := &Y{}
 
-	if err := Map(source, dest); err != nil {
+    if err := Map(source, dest); err != nil {
         // handle mapping error
     }
 
