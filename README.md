@@ -1,6 +1,7 @@
 # gomapper
 
 [![GoDoc](https://godoc.org/github.com/Trendyol/gomapper?status.svg)](https://godoc.org/github.com/Trendyol/gomapper)
+
 An auto mapping tool for Golang dtos.
 (Originally inspired by https://github.com/stroiman/go-automapper)
 
