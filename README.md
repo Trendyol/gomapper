@@ -45,5 +45,6 @@ Use Map function:
     }
 
     // You will see i64 field in Y equal to zero.
-    // Because private fields won't map until source and dest types are the same. (X and Y are different)
+    // Because private fields won't map until source and dest types are the same.
+    // (X and Y are different types)
 ```
