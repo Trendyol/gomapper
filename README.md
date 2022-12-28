@@ -40,9 +40,9 @@ Use Map function:
 	},
     }
 
-    dest := &Y{}
+    dest := Y{}
 
-    if err := Map(source, dest); err != nil {
+    if err := Map(source, &dest); err != nil {
         // handle mapping error
     }
 
