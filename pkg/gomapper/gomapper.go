@@ -15,7 +15,7 @@ import (
 	"errors"
 )
 
-type MapOptions struct {
+type Option struct {
 	// If this is false(default); It doesn't fail
 	// when the destination type contains fields not supplied by the source.
 	// If this is true; All fields in the
@@ -26,8 +26,8 @@ type MapOptions struct {
 	Exact bool
 }
 
-func getDefaultMapOptions() *MapOptions {
-	return &MapOptions{
+func getDefaultOption() *Option {
+	return &Option{
 		Exact: false,
 	}
 }
@@ -36,8 +36,8 @@ func getDefaultMapOptions() *MapOptions {
 // If options does not provided it uses default map options.
 // Embedded/anonymous structs are supported.
 // Values that are not exported/not public will not be mapped.
-func Map(source, dest any, opts ...*MapOptions) error {
-	mapOptions, err := validateMapOptions(opts...)
+func Map(source, dest any, options ...*Option) error {
+	option, err := verifyMapOption(options...)
 	if err != nil {
 		return err
 	}
@@ -60,40 +60,35 @@ func Map(source, dest any, opts ...*MapOptions) error {
 		sourceVal = reflect.ValueOf(source).Elem()
 	}
 
-	var destVal = reflect.ValueOf(dest).Elem()
-
-	return mapValues(sourceVal, destVal, !mapOptions.Exact)
+	return mapValues(sourceVal, reflect.ValueOf(dest).Elem(), !option.Exact)
 }
 
-func validateMapOptions(opts ...*MapOptions) (*MapOptions, error) {
-	if len(opts) > 1 {
-		return nil, errors.New("function accepts only one option as a parameter")
+func verifyMapOption(options ...*Option) (*Option, error) {
+	if len(options) > 1 {
+		return nil, errors.New("only one option is accepted as a parameter")
 	}
 
-	var mapOptions *MapOptions
+	var option *Option
 
-	if len(opts) == 0 {
-		mapOptions = getDefaultMapOptions()
+	if len(options) == 0 {
+		option = getDefaultOption()
 	} else {
-		mapOptions = opts[0]
+		option = options[0]
 	}
 
-	return mapOptions, nil
+	return option, nil
 }
 
 func mapValues(sourceVal, destVal reflect.Value, loose bool) error {
-	destType := destVal.Type()
-
 	// If the types are equal, map to destination from the top.
 	// This can cause side effects, because pointer fields will point
 	// to the same structure. In practice we are using this tool for transfering
 	// data between layers. Not using for deep copy purposes. This is acceptable.
-	if destVal.CanSet() && destType == sourceVal.Type() {
+	if destVal.CanSet() && destVal.Type() == sourceVal.Type() {
 		destVal.Set(sourceVal)
-
 		return nil
-	} else if destType.Kind() == reflect.Struct {
-		if sourceVal.Type().Kind() == reflect.Ptr {
+	} else if destVal.Kind() == reflect.Struct {
+		if sourceVal.Kind() == reflect.Ptr {
 			if sourceVal.IsNil() {
 				// If source is nil, it maps to an empty struct.
 				sourceVal = reflect.New(sourceVal.Type().Elem())
@@ -107,21 +102,24 @@ func mapValues(sourceVal, destVal reflect.Value, loose bool) error {
 				}
 			}
 		}
-
 		return nil
-	} else if destType.Kind() == reflect.Ptr {
-		if reflectValueIsNil(sourceVal) {
-			return nil
+	} else if destVal.Kind() == reflect.Ptr {
+		if sourceVal.Kind() == reflect.Ptr {
+			if sourceVal.IsNil() {
+				return nil
+			}
+			sourceVal = sourceVal.Elem()
 		}
-		val := reflect.New(destType.Elem())
-		if err := mapValues(sourceVal, val.Elem(), loose); err != nil {
+		destValZero := reflect.New(destVal.Type().Elem())
+		if err := mapValues(sourceVal, destValZero.Elem(), loose); err != nil {
 			return err
 		}
-		destVal.Set(val)
-
+		destVal.Set(destValZero)
 		return nil
-	} else if destType.Kind() == reflect.Slice {
+	} else if destVal.Kind() == reflect.Slice {
 		return mapSlice(sourceVal, destVal, loose)
+	} else if destVal.Kind() == reflect.Map {
+		return mapMap(sourceVal, destVal, loose)
 	} else {
 		return errors.New("error mapping values: currently not supported")
 	}
@@ -131,25 +129,37 @@ func mapSlice(sourceVal, destVal reflect.Value, loose bool) error {
 	destType := destVal.Type()
 	length := sourceVal.Len()
 	target := reflect.MakeSlice(destType, length, length)
-	for j := 0; j < length; j++ {
+
+	for i := 0; i < length; i++ {
 		val := reflect.New(destType.Elem()).Elem()
-		if err := mapValues(sourceVal.Index(j), val, loose); err != nil {
+		if err := mapValues(sourceVal.Index(i), val, loose); err != nil {
 			return err
 		}
-		target.Index(j).Set(val)
+		target.Index(i).Set(val)
 	}
 
 	if length == 0 {
-		if err := verifyArrayTypesAreCompatible(sourceVal, destVal, loose); err != nil {
+		if err := verifySliceTypesAreCompatible(sourceVal, destVal, loose); err != nil {
 			return err
 		}
 	}
-	destVal.Set(target)
 
+	destVal.Set(target)
 	return nil
 }
 
-func verifyArrayTypesAreCompatible(sourceVal, destVal reflect.Value, loose bool) error {
+func mapMap(sourceVal, destVal reflect.Value, loose bool) error {
+	//destType := destVal.Type()
+	return errors.New("error mapping values: currently not supported")
+}
+
+// func verifyMapTypesAreCompatible(sourceVal, destVal reflect.Value, loose bool) error {
+// 	dummyDest := reflect.New(reflect.PtrTo(destVal.Type()))
+// 	dummySource := reflect.MakeMapWithSize(sourceVal.Type(), 1)
+// 	return mapValues(dummySource, dummyDest.Elem(), loose)
+// }
+
+func verifySliceTypesAreCompatible(sourceVal, destVal reflect.Value, loose bool) error {
 	dummyDest := reflect.New(reflect.PtrTo(destVal.Type()))
 	dummySource := reflect.MakeSlice(sourceVal.Type(), 1, 1)
 	return mapValues(dummySource, dummyDest.Elem(), loose)
