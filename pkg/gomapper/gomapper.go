@@ -82,7 +82,7 @@ func verifyMapOption(options ...*Option) (*Option, error) {
 func mapValues(sourceVal, destVal reflect.Value, loose bool) error {
 	// If the types are equal, map to destination from the top.
 	// This can cause side effects, because pointer fields will point
-	// to the same structure. In practice we are using this tool for transfering
+	// to the same structure. In practice we are using this tool for transferring
 	// data between layers. Not using for deep copy purposes. This is acceptable.
 	if destVal.CanSet() && destVal.Type() == sourceVal.Type() {
 		destVal.Set(sourceVal)
