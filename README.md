@@ -10,43 +10,44 @@ Examples:
 Declare your types:
 
 ```go
-    type A struct {
+    type Location struct {
         Name string
         zone []string
     }
 
-    type X struct {
-        Ui64 uint64
-        i64  int64
-        A    A
+    type Source struct {
+        Ui64     uint64
+        i64      int64
+        Location Location
     }
 
-    type Y struct {
-        Ui64 uint64
-        i64  int64
-        A    *A
+    type Destination struct {
+        Ui64     uint64
+        i64      int64
+        Location *Location
     }
 ```
 
 Use Map function:
 
 ```go
-    source := X{
+    source := Source{
         Ui64: 123,
         i64:  321,
-        A: A{
-	    Name: "abc",
-	    zone: []string{"k", "l", "m"},
-	},
+        Location: Location{
+	        Name: "abc",
+	        zone: []string{"k", "l", "m"},
+	    },
     }
 
-    dest := Y{}
+    dest := Destination{}
 
     if err := Map(source, &dest); err != nil {
         // handle mapping error
     }
 
-    // You will see i64 field in Y equal to zero.
-    // Because private fields won't map until source and dest types are the same.
-    // (X and Y are different types)
+    // You will see i64 field in dest equal to zero.
+    // Because private fields won't map until source
+    // and destination types are the same.
+    // (Source and Destination types are two different types)
 ```
