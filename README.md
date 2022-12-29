@@ -46,7 +46,7 @@ Use Map function:
         // handle mapping error
     }
 
-    // You will see i64 field in dest equal to zero.
+    // You will see i64 field in dest is equal to zero.
     // Because private fields won't map until source
     // and destination types are the same.
     // (src and dest variables are two different types)
