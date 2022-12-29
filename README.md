@@ -31,7 +31,7 @@ Declare your types:
 Use Map function:
 
 ```go
-    source := Source{
+    src := Source{
         Ui64: 123,
         i64:  321,
         Location: Location{
@@ -42,12 +42,12 @@ Use Map function:
 
     dest := Destination{}
 
-    if err := Map(source, &dest); err != nil {
+    if err := gomapper.Map(src, &dest); err != nil {
         // handle mapping error
     }
 
     // You will see i64 field in dest equal to zero.
     // Because private fields won't map until source
     // and destination types are the same.
-    // (Source and Destination types are two different types)
+    // (src and dest variables are two different types)
 ```
