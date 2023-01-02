@@ -40,7 +40,7 @@ type RoleY struct {
 	Count *int
 }
 
-func Test_Slice(t *testing.T) {
+func Test_Slice_When_Dest_Ptr(t *testing.T) {
 	size := 50
 	count := 5
 
@@ -63,33 +63,7 @@ func Test_Slice(t *testing.T) {
 	assert.NotNil(t, dest.Roles)
 }
 
-func Test_Slice_Is_Nil_When_Dest_Is_Ptr(t *testing.T) {
-	source := FlavorX{
-		Type:  "small",
-		Roles: nil,
-	}
-
-	var dest FlavorY
-	err := gomapper.Map(&source, &dest)
-
-	assert.Nil(t, err)
-	assert.Nil(t, dest.Roles)
-}
-
-func Test_Slice_Is_Nil_When_Dest_Is_NonPtr(t *testing.T) {
-	source := FlavorX{
-		Type:  "small",
-		Roles: nil,
-	}
-
-	var dest FlavorWithNonPointerRoleSlice
-	err := gomapper.Map(&source, &dest)
-
-	assert.Nil(t, err)
-	assert.Nil(t, dest.Roles)
-}
-
-func Test_NonPointer_Slice(t *testing.T) {
+func Test_Slice_When_Dest_NonPtr(t *testing.T) {
 	size := 50
 	count := 5
 
@@ -107,4 +81,30 @@ func Test_NonPointer_Slice(t *testing.T) {
 
 	assert.Nil(t, err)
 	assert.NotNil(t, dest.Roles)
+}
+
+func Test_Slice_Nil_When_Dest_Ptr(t *testing.T) {
+	source := FlavorX{
+		Type:  "small",
+		Roles: nil,
+	}
+
+	var dest FlavorY
+	err := gomapper.Map(&source, &dest)
+
+	assert.Nil(t, err)
+	assert.Nil(t, dest.Roles)
+}
+
+func Test_Slice_Nil_When_Dest_NonPtr(t *testing.T) {
+	source := FlavorX{
+		Type:  "small",
+		Roles: nil,
+	}
+
+	var dest FlavorWithNonPointerRoleSlice
+	err := gomapper.Map(&source, &dest)
+
+	assert.Nil(t, err)
+	assert.Nil(t, dest.Roles)
 }
