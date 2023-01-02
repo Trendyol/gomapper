@@ -86,7 +86,6 @@ func mapValues(sourceVal, destVal reflect.Value, loose bool) error {
 	// data between layers. Not using for deep copy purposes. This is acceptable.
 	if destVal.CanSet() && destVal.Type() == sourceVal.Type() {
 		destVal.Set(sourceVal)
-		return nil
 	} else if destVal.Kind() == reflect.Struct {
 		if sourceVal.Kind() == reflect.Ptr {
 			if sourceVal.IsNil() {
@@ -102,27 +101,30 @@ func mapValues(sourceVal, destVal reflect.Value, loose bool) error {
 				}
 			}
 		}
-		return nil
 	} else if destVal.Kind() == reflect.Ptr {
+		if sourceVal.Kind() == reflect.Ptr && sourceVal.IsNil() {
+			return nil
+		}
+		destValZeroPtr := reflect.New(destVal.Type().Elem())
+		if err := mapValues(sourceVal, destValZeroPtr.Elem(), loose); err != nil {
+			return err
+		}
+		destVal.Set(destValZeroPtr)
+	} else if destVal.Kind() == reflect.Slice {
 		if sourceVal.Kind() == reflect.Ptr {
 			if sourceVal.IsNil() {
 				return nil
 			}
 			sourceVal = sourceVal.Elem()
 		}
-		destValZero := reflect.New(destVal.Type().Elem())
-		if err := mapValues(sourceVal, destValZero.Elem(), loose); err != nil {
-			return err
-		}
-		destVal.Set(destValZero)
-		return nil
-	} else if destVal.Kind() == reflect.Slice {
 		return mapSlice(sourceVal, destVal, loose)
 	} else if destVal.Kind() == reflect.Map {
 		return mapMap(sourceVal, destVal, loose)
 	} else {
 		return errors.New("error mapping values: currently not supported")
 	}
+
+	return nil
 }
 
 func mapSlice(sourceVal, destVal reflect.Value, loose bool) error {
@@ -149,8 +151,49 @@ func mapSlice(sourceVal, destVal reflect.Value, loose bool) error {
 }
 
 func mapMap(sourceVal, destVal reflect.Value, loose bool) error {
-	//destType := destVal.Type()
-	return errors.New("error mapping values: currently not supported")
+	// Kaynak ve hedef verinin türlerini alın
+	sourceType := sourceVal.Type()
+	destType := destVal.Type()
+
+	// Kaynak ve hedef verinin eleman türlerini alın
+	sourceElemType := sourceType.Elem()
+	destElemType := destType.Elem()
+
+	// Eğer kaynak ve hedef verinin eleman türleri aynı ise, hedef veriyi kaynak veriden kopyalayın
+	if sourceElemType == destElemType {
+		destVal.Set(sourceVal)
+		return nil
+	}
+
+	// Eğer kaynak ve hedef verinin eleman türleri farklı ise, hedef veriyi oluşturun
+	destMap := reflect.MakeMap(destType)
+
+	// Kaynak verinin elemanlarını döngüyle gezin
+	for _, key := range sourceVal.MapKeys() {
+		// Kaynak verinin elemanını alın
+		sourceElem := sourceVal.MapIndex(key)
+
+		// Eğer hedef verinin eleman türü bir slice (dizi) ise, kaynak verinin elemanını hedef verinin elemanına dönüştürün
+		if destElemType.Kind() == reflect.Slice {
+			destElem := reflect.New(destElemType).Elem()
+			if err := mapSlice(sourceElem, destElem, loose); err != nil {
+				return err
+			}
+			destMap.SetMapIndex(key, destElem)
+		} else {
+			// Eğer hedef verinin eleman türü bir slice değilse, hedef verinin elemanını oluşturun ve kaynak verinin elemanını hedef verinin elemanına dönüştürün
+			destElem := reflect.New(destElemType).Elem()
+			if err := mapValues(sourceElem, destElem, loose); err != nil {
+				return err
+			}
+			destMap.SetMapIndex(key, destElem)
+		}
+	}
+
+	// Oluşturulan hedef veriyi, hedef veri değişkenine atayın
+	destVal.Set(destMap)
+
+	return nil
 }
 
 // func verifyMapTypesAreCompatible(sourceVal, destVal reflect.Value, loose bool) error {

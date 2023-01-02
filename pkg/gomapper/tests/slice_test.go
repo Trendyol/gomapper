@@ -7,27 +7,32 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type RootX struct {
-	Flavor *FlavorX
-}
-
 type FlavorX struct {
 	Type  string
 	Roles *[]RoleX
 }
 
-type RoleX struct {
-	Size  *int
-	Count *int
+type FlavorY struct {
+	Type  string
+	Roles *[]RoleY
+}
+
+type FlavorWithNonPointerRoleSlice struct {
+	Type  string
+	Roles []RoleX
+}
+
+type RootX struct {
+	Flavor *FlavorX
 }
 
 type RootY struct {
 	Flavor *FlavorY
 }
 
-type FlavorY struct {
-	Type  string
-	Roles *[]RoleY
+type RoleX struct {
+	Size  *int
+	Count *int
 }
 
 type RoleY struct {
@@ -58,7 +63,7 @@ func Test_Slice(t *testing.T) {
 	assert.NotNil(t, dest.Roles)
 }
 
-func Test_Slice_Nil(t *testing.T) {
+func Test_Slice_Is_Nil_When_Dest_Is_Ptr(t *testing.T) {
 	source := FlavorX{
 		Type:  "small",
 		Roles: nil,
@@ -69,4 +74,37 @@ func Test_Slice_Nil(t *testing.T) {
 
 	assert.Nil(t, err)
 	assert.Nil(t, dest.Roles)
+}
+
+func Test_Slice_Is_Nil_When_Dest_Is_NonPtr(t *testing.T) {
+	source := FlavorX{
+		Type:  "small",
+		Roles: nil,
+	}
+
+	var dest FlavorWithNonPointerRoleSlice
+	err := gomapper.Map(&source, &dest)
+
+	assert.Nil(t, err)
+	assert.Nil(t, dest.Roles)
+}
+
+func Test_NonPointer_Slice(t *testing.T) {
+	size := 50
+	count := 5
+
+	source := FlavorX{
+		Type: "small",
+		Roles: &[]RoleX{
+			{
+				Size:  &size,
+				Count: &count,
+			},
+		}}
+
+	var dest FlavorWithNonPointerRoleSlice
+	err := gomapper.Map(&source, &dest)
+
+	assert.Nil(t, err)
+	assert.NotNil(t, dest.Roles)
 }
