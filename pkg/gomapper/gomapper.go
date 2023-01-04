@@ -102,7 +102,6 @@ func mapValues(sourceVal, destVal reflect.Value, loose bool) error {
 		} else if sourceVal.Kind() == reflect.Ptr {
 			sourceVal = sourceVal.Elem()
 		}
-
 		for i := 0; i < destVal.NumField(); i++ {
 			if err := mapField(sourceVal, destVal, i, loose); err != nil {
 				if !loose {
