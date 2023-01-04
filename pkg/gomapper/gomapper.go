@@ -86,23 +86,8 @@ func mapValues(sourceVal, destVal reflect.Value, loose bool) error {
 	// data between layers. Not using for deep copy purposes. This is acceptable.
 	if destVal.CanSet() && destVal.Type() == sourceVal.Type() {
 		destVal.Set(sourceVal)
-	} else if destVal.Kind() == reflect.Struct {
-		if sourceVal.Kind() == reflect.Ptr {
-			if sourceVal.IsNil() {
-				// If source is nil, it maps to an empty struct.
-				sourceVal = reflect.New(sourceVal.Type().Elem())
-			}
-			sourceVal = sourceVal.Elem()
-		}
-		for i := 0; i < destVal.NumField(); i++ {
-			if err := mapField(sourceVal, destVal, i, loose); err != nil {
-				if !loose {
-					return err
-				}
-			}
-		}
 	} else if destVal.Kind() == reflect.Ptr {
-		if sourceVal.Kind() == reflect.Ptr && sourceVal.IsNil() {
+		if isReflectValNil(sourceVal) {
 			return nil
 		}
 		destValZeroPtr := reflect.New(destVal.Type().Elem())
@@ -110,15 +95,34 @@ func mapValues(sourceVal, destVal reflect.Value, loose bool) error {
 			return err
 		}
 		destVal.Set(destValZeroPtr)
-	} else if destVal.Kind() == reflect.Slice {
-		if sourceVal.Kind() == reflect.Ptr {
-			if sourceVal.IsNil() {
-				return nil
+	} else if destVal.Kind() == reflect.Struct {
+		if isReflectValNil(sourceVal) {
+			// If source is nil, it maps to an empty struct.
+			sourceVal = reflect.New(sourceVal.Type().Elem())
+		} else if sourceVal.Kind() == reflect.Ptr {
+			sourceVal = sourceVal.Elem()
+		}
+
+		for i := 0; i < destVal.NumField(); i++ {
+			if err := mapField(sourceVal, destVal, i, loose); err != nil {
+				if !loose {
+					return err
+				}
 			}
+		}
+	} else if destVal.Kind() == reflect.Slice {
+		if isReflectValNil(sourceVal) {
+			return nil
+		} else if sourceVal.Kind() == reflect.Ptr {
 			sourceVal = sourceVal.Elem()
 		}
 		return mapSlice(sourceVal, destVal, loose)
 	} else if destVal.Kind() == reflect.Map {
+		if isReflectValNil(sourceVal) {
+			return nil
+		} else if sourceVal.Kind() == reflect.Ptr {
+			sourceVal = sourceVal.Elem()
+		}
 		return mapMap(sourceVal, destVal, loose)
 	} else {
 		return errors.New("error mapping values: currently not supported")
@@ -151,47 +155,47 @@ func mapSlice(sourceVal, destVal reflect.Value, loose bool) error {
 }
 
 func mapMap(sourceVal, destVal reflect.Value, loose bool) error {
-	// Kaynak ve hedef verinin türlerini alın
-	sourceType := sourceVal.Type()
-	destType := destVal.Type()
+	// // Kaynak ve hedef verinin türlerini alın
+	// sourceType := sourceVal.Type()
+	// destType := destVal.Type()
 
-	// Kaynak ve hedef verinin eleman türlerini alın
-	sourceElemType := sourceType.Elem()
-	destElemType := destType.Elem()
+	// // Kaynak ve hedef verinin eleman türlerini alın
+	// sourceElemType := sourceType.Elem()
+	// destElemType := destType.Elem()
 
-	// Eğer kaynak ve hedef verinin eleman türleri aynı ise, hedef veriyi kaynak veriden kopyalayın
-	if sourceElemType == destElemType {
-		destVal.Set(sourceVal)
-		return nil
-	}
+	// // Eğer kaynak ve hedef verinin eleman türleri aynı ise, hedef veriyi kaynak veriden kopyalayın
+	// if sourceElemType == destElemType {
+	// 	destVal.Set(sourceVal)
+	// 	return nil
+	// }
 
-	// Eğer kaynak ve hedef verinin eleman türleri farklı ise, hedef veriyi oluşturun
-	destMap := reflect.MakeMap(destType)
+	// // Eğer kaynak ve hedef verinin eleman türleri farklı ise, hedef veriyi oluşturun
+	// destMap := reflect.MakeMap(destType)
 
-	// Kaynak verinin elemanlarını döngüyle gezin
-	for _, key := range sourceVal.MapKeys() {
-		// Kaynak verinin elemanını alın
-		sourceElem := sourceVal.MapIndex(key)
+	// // Kaynak verinin elemanlarını döngüyle gezin
+	// for _, key := range sourceVal.MapKeys() {
+	// 	// Kaynak verinin elemanını alın
+	// 	sourceElem := sourceVal.MapIndex(key)
 
-		// Eğer hedef verinin eleman türü bir slice (dizi) ise, kaynak verinin elemanını hedef verinin elemanına dönüştürün
-		if destElemType.Kind() == reflect.Slice {
-			destElem := reflect.New(destElemType).Elem()
-			if err := mapSlice(sourceElem, destElem, loose); err != nil {
-				return err
-			}
-			destMap.SetMapIndex(key, destElem)
-		} else {
-			// Eğer hedef verinin eleman türü bir slice değilse, hedef verinin elemanını oluşturun ve kaynak verinin elemanını hedef verinin elemanına dönüştürün
-			destElem := reflect.New(destElemType).Elem()
-			if err := mapValues(sourceElem, destElem, loose); err != nil {
-				return err
-			}
-			destMap.SetMapIndex(key, destElem)
-		}
-	}
+	// 	// Eğer hedef verinin eleman türü bir slice (dizi) ise, kaynak verinin elemanını hedef verinin elemanına dönüştürün
+	// 	if destElemType.Kind() == reflect.Slice {
+	// 		destElem := reflect.New(destElemType).Elem()
+	// 		if err := mapSlice(sourceElem, destElem, loose); err != nil {
+	// 			return err
+	// 		}
+	// 		destMap.SetMapIndex(key, destElem)
+	// 	} else {
+	// 		// Eğer hedef verinin eleman türü bir slice değilse, hedef verinin elemanını oluşturun ve kaynak verinin elemanını hedef verinin elemanına dönüştürün
+	// 		destElem := reflect.New(destElemType).Elem()
+	// 		if err := mapValues(sourceElem, destElem, loose); err != nil {
+	// 			return err
+	// 		}
+	// 		destMap.SetMapIndex(key, destElem)
+	// 	}
+	// }
 
-	// Oluşturulan hedef veriyi, hedef veri değişkenine atayın
-	destVal.Set(destMap)
+	// // Oluşturulan hedef veriyi, hedef veri değişkenine atayın
+	// destVal.Set(destMap)
 
 	return nil
 }
@@ -256,7 +260,7 @@ func valueIsContainedInNilEmbeddedType(source reflect.Value, fieldName string) b
 	ix := structField.Index
 	if len(structField.Index) > 1 {
 		parentField := source.FieldByIndex(ix[:len(ix)-1])
-		if reflectValueIsNil(parentField) {
+		if isReflectValNil(parentField) {
 			return true
 		}
 	}
