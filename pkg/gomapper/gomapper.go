@@ -115,6 +115,7 @@ func mapValues(sourceVal, destVal reflect.Value, loose bool) error {
 		} else if sourceVal.Kind() == reflect.Ptr {
 			sourceVal = sourceVal.Elem()
 		}
+		// TODO: Check is source a slice?
 		return mapSlice(sourceVal, destVal, loose)
 	} else if destVal.Kind() == reflect.Map {
 		if isReflectValNil(sourceVal) {
@@ -122,6 +123,7 @@ func mapValues(sourceVal, destVal reflect.Value, loose bool) error {
 		} else if sourceVal.Kind() == reflect.Ptr {
 			sourceVal = sourceVal.Elem()
 		}
+		// TODO: Check is source a map?
 		return mapMap(sourceVal, destVal, loose)
 	} else {
 		return errors.New("error mapping values: currently not supported")
@@ -132,10 +134,10 @@ func mapValues(sourceVal, destVal reflect.Value, loose bool) error {
 
 func mapSlice(sourceVal, destVal reflect.Value, loose bool) error {
 	destType := destVal.Type()
-	length := sourceVal.Len()
-	target := reflect.MakeSlice(destType, length, length)
+	sourceLength := sourceVal.Len()
+	target := reflect.MakeSlice(destType, sourceLength, sourceLength)
 
-	for i := 0; i < length; i++ {
+	for i := 0; i < sourceLength; i++ {
 		val := reflect.New(destType.Elem()).Elem()
 		if err := mapValues(sourceVal.Index(i), val, loose); err != nil {
 			return err
@@ -143,7 +145,7 @@ func mapSlice(sourceVal, destVal reflect.Value, loose bool) error {
 		target.Index(i).Set(val)
 	}
 
-	if length == 0 {
+	if sourceLength == 0 {
 		if err := verifySliceTypesAreCompatible(sourceVal, destVal, loose); err != nil {
 			return err
 		}
