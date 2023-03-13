@@ -8,11 +8,11 @@ import (
 )
 
 type A struct {
-	MapStringX map[string]C
+	MapX map[string]C
 }
 
 type B struct {
-	MapStringX map[string]D
+	MapX map[string]D
 }
 
 type C struct {
@@ -28,12 +28,16 @@ type E struct {
 }
 
 type F struct {
-	MapStringX map[string]E
+	MapX map[string]E
 }
 
-func Test_Map_Values(t *testing.T) {
+type G struct {
+	MapX map[int]E
+}
+
+func Test_Map_Values_Equality(t *testing.T) {
 	source := A{
-		MapStringX: map[string]C{
+		MapX: map[string]C{
 			"key1": {Name: "struct1"},
 			"key2": {Name: "struct2"},
 		},
@@ -43,16 +47,27 @@ func Test_Map_Values(t *testing.T) {
 	err := gomapper.Map(source, &dest)
 
 	assert.Nil(t, err)
-	assert.Equal(t, "struct1", dest.MapStringX["key1"].Name)
-	assert.Equal(t, "struct2", dest.MapStringX["key2"].Name)
+	assert.Equal(t, "struct1", dest.MapX["key1"].Name)
+	assert.Equal(t, "struct2", dest.MapX["key2"].Name)
 }
 
-func Test_Empty_Map_Should_Not_Compatible(t *testing.T) {
+func Test_Map_Element_Types_Should_Not_Compatible(t *testing.T) {
 	source := A{
-		MapStringX: map[string]C{},
+		MapX: map[string]C{},
 	}
 
 	var dest F
+	err := gomapper.Map(source, &dest)
+
+	assert.NotNil(t, err)
+}
+
+func Test_Map_Key_Types_Should_Not_Compatible(t *testing.T) {
+	source := F{
+		MapX: map[string]E{},
+	}
+
+	var dest G
 	err := gomapper.Map(source, &dest)
 
 	assert.NotNil(t, err)
