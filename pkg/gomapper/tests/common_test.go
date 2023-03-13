@@ -32,6 +32,14 @@ type D struct {
 	C *C
 }
 
+type E struct {
+	Name Z
+}
+
+type F struct {
+	Name *string
+}
+
 type C struct {
 	address string
 }
@@ -148,4 +156,29 @@ func Test_Y_To_Z_Map_Loose(t *testing.T) {
 	}
 
 	assert.Equal(t, source.In.C.address, dest.In.C.address)
+}
+
+func Test_Mapping_Source_String_Field_To_Dest_Struct_Field_Should_Return_Error(t *testing.T) {
+	source := A{
+		Name: "istanbul",
+		zone: []string{},
+	}
+
+	dest := &E{}
+
+	err := gomapper.Map(source, dest)
+
+	assert.NotNil(t, err)
+}
+
+func Test_Mapping_Nil_Pointer_Source_String_Field_To_Dest_Struct_Field_Should_Return_Error(t *testing.T) {
+	source := F{
+		Name: nil,
+	}
+
+	dest := &E{}
+
+	err := gomapper.Map(source, dest)
+
+	assert.NotNil(t, err)
 }

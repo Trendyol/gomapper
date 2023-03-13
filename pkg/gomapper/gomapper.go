@@ -95,10 +95,14 @@ func mapValues(sourceVal, destVal reflect.Value, loose bool) error {
 		destVal.Set(destValZeroPtr)
 	} else if destVal.Kind() == reflect.Struct {
 		if isReflectValNil(sourceVal) {
-			// If source is nil, it maps to an empty struct.
+			// If source is nil, make a new default value of source's type.
 			sourceVal = reflect.New(sourceVal.Type().Elem())
-		} else if sourceVal.Kind() == reflect.Ptr {
+		}
+		if sourceVal.Kind() == reflect.Ptr {
 			sourceVal = sourceVal.Elem()
+		}
+		if sourceVal.Kind() != reflect.Struct {
+			return errors.New("error mapping values: dest kind: struct, source kind: " + sourceVal.Kind().String())
 		}
 		for i := 0; i < destVal.NumField(); i++ {
 			if err := mapField(sourceVal, destVal, i, loose); err != nil {
