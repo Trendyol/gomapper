@@ -18,6 +18,8 @@ import (
 type Option struct {
 	// If this is false(default); It does not generate an error when the target type contains fields but these fields are not found in the source.
 	// If this is true; All fields in the destination object must exist in the source object.
+	// Also if this is true private destination fields must be supplied, that means if private destination field does not map automatically
+	// from the upper object hierarchy then it will produce an error.
 	// Object hierarchies with nested structs and slices are supported, as long as
 	// type types of nested structs/slices follow the same rules, i.e. all fields
 	// in destination structs must be found on the source struct.
