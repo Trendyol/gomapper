@@ -1,4 +1,4 @@
-package maptype
+package mapkind
 
 import (
 	"testing"

@@ -1,4 +1,4 @@
-package slicetype
+package slicekind
 
 import (
 	"testing"
