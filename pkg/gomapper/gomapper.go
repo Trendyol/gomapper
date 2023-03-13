@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"errors"
+	"github.com/pkg/errors"
 )
 
 type Option struct {
@@ -104,29 +104,33 @@ func mapValues(sourceVal, destVal reflect.Value, loose bool) error {
 		}
 		for i := 0; i < destVal.NumField(); i++ {
 			if err := mapField(sourceVal, destVal, i, loose); err != nil {
-				if !loose {
-					return err
-				}
+				return err
 			}
 		}
 	} else if destVal.Kind() == reflect.Slice {
 		if isReflectValNil(sourceVal) {
 			return nil
-		} else if sourceVal.Kind() == reflect.Ptr {
+		}
+		if sourceVal.Kind() == reflect.Ptr {
 			sourceVal = sourceVal.Elem()
 		}
-		// TODO: Check is source a slice?
+		if sourceVal.Kind() != reflect.Slice {
+			return errors.New("error mapping values: dest kind: slice, source kind: " + sourceVal.Kind().String())
+		}
 		return mapSlice(sourceVal, destVal, loose)
 	} else if destVal.Kind() == reflect.Map {
 		if isReflectValNil(sourceVal) {
 			return nil
-		} else if sourceVal.Kind() == reflect.Ptr {
+		}
+		if sourceVal.Kind() == reflect.Ptr {
 			sourceVal = sourceVal.Elem()
 		}
-		// TODO: Check is source a map?
+		if sourceVal.Kind() != reflect.Map {
+			return errors.New("error mapping values: dest kind: map, source kind: " + sourceVal.Kind().String())
+		}
 		return mapMap(sourceVal, destVal, loose)
 	} else {
-		return errors.New("error mapping values: currently not supported")
+		return errors.New(fmt.Sprintf("error mapping values: types are not compatible: Source Type: %s, Dest Type: %s", sourceVal.Type().Name(), destVal.Type().Name()))
 	}
 
 	return nil
@@ -155,62 +159,48 @@ func mapSlice(sourceVal, destVal reflect.Value, loose bool) error {
 	return nil
 }
 
+func verifySliceTypesAreCompatible(sourceVal, destVal reflect.Value, loose bool) error {
+	dummyDest := reflect.New(reflect.PtrTo(destVal.Type())).Elem()
+	dummySource := reflect.MakeSlice(sourceVal.Type(), 1, 1)
+	return mapValues(dummySource, dummyDest, loose)
+}
+
 func mapMap(sourceVal, destVal reflect.Value, loose bool) error {
-	// // Kaynak ve hedef verinin türlerini alın
-	// sourceType := sourceVal.Type()
-	// destType := destVal.Type()
+	sourceKeyType := sourceVal.Type().Key()
+	destType := destVal.Type()
+	destKeyType := destType.Key()
 
-	// // Kaynak ve hedef verinin eleman türlerini alın
-	// sourceElemType := sourceType.Elem()
-	// destElemType := destType.Elem()
+	if sourceKeyType.Name() != destKeyType.Name() {
+		return errors.New(fmt.Sprintf("error mapping maps: map key types are not equal: Source Key Type: %s, Dest Key Type: %s", sourceKeyType.Name(), destKeyType.Name()))
+	}
 
-	// // Eğer kaynak ve hedef verinin eleman türleri aynı ise, hedef veriyi kaynak veriden kopyalayın
-	// if sourceElemType == destElemType {
-	// 	destVal.Set(sourceVal)
-	// 	return nil
-	// }
+	sourceLength := sourceVal.Len()
+	targetMap := reflect.MakeMapWithSize(destType, sourceLength)
 
-	// // Eğer kaynak ve hedef verinin eleman türleri farklı ise, hedef veriyi oluşturun
-	// destMap := reflect.MakeMap(destType)
+	for _, key := range sourceVal.MapKeys() {
+		sourceElem := sourceVal.MapIndex(key)
 
-	// // Kaynak verinin elemanlarını döngüyle gezin
-	// for _, key := range sourceVal.MapKeys() {
-	// 	// Kaynak verinin elemanını alın
-	// 	sourceElem := sourceVal.MapIndex(key)
+		destElem := reflect.New(destType.Elem()).Elem()
+		if err := mapValues(sourceElem, destElem, loose); err != nil {
+			return err
+		}
+		targetMap.SetMapIndex(key, destElem)
+	}
 
-	// 	// Eğer hedef verinin eleman türü bir slice (dizi) ise, kaynak verinin elemanını hedef verinin elemanına dönüştürün
-	// 	if destElemType.Kind() == reflect.Slice {
-	// 		destElem := reflect.New(destElemType).Elem()
-	// 		if err := mapSlice(sourceElem, destElem, loose); err != nil {
-	// 			return err
-	// 		}
-	// 		destMap.SetMapIndex(key, destElem)
-	// 	} else {
-	// 		// Eğer hedef verinin eleman türü bir slice değilse, hedef verinin elemanını oluşturun ve kaynak verinin elemanını hedef verinin elemanına dönüştürün
-	// 		destElem := reflect.New(destElemType).Elem()
-	// 		if err := mapValues(sourceElem, destElem, loose); err != nil {
-	// 			return err
-	// 		}
-	// 		destMap.SetMapIndex(key, destElem)
-	// 	}
-	// }
+	if sourceLength == 0 {
+		if err := verifyMapElemTypesAreCompatible(sourceVal, destVal, loose); err != nil {
+			return err
+		}
+	}
 
-	// // Oluşturulan hedef veriyi, hedef veri değişkenine atayın
-	// destVal.Set(destMap)
-
+	destVal.Set(targetMap)
 	return nil
 }
 
-// func verifyMapTypesAreCompatible(sourceVal, destVal reflect.Value, loose bool) error {
-// 	dummyDest := reflect.New(reflect.PtrTo(destVal.Type()))
-// 	dummySource := reflect.MakeMapWithSize(sourceVal.Type(), 1)
-// 	return mapValues(dummySource, dummyDest.Elem(), loose)
-// }
-
-func verifySliceTypesAreCompatible(sourceVal, destVal reflect.Value, loose bool) error {
-	dummyDest := reflect.New(reflect.PtrTo(destVal.Type()))
-	dummySource := reflect.MakeSlice(sourceVal.Type(), 1, 1)
-	return mapValues(dummySource, dummyDest.Elem(), loose)
+func verifyMapElemTypesAreCompatible(sourceVal, destVal reflect.Value, loose bool) error {
+	dummyDestElem := reflect.New(destVal.Type().Elem()).Elem()
+	dummySourceElem := reflect.New(sourceVal.Type().Elem()).Elem()
+	return mapValues(dummySourceElem, dummyDestElem, loose)
 }
 
 func mapField(source, destVal reflect.Value, i int, loose bool) error {
@@ -230,8 +220,8 @@ func mapField(source, destVal reflect.Value, i int, loose bool) error {
 		if loose {
 			return nil
 		} else {
-			return fmt.Errorf("error mapping field: %s. Field can not set! DestType: %v SourceType: %v",
-				fieldName, destType, source.Type())
+			return errors.New(fmt.Sprintf("error mapping field: %s. Field can not set! DestType: %v SourceType: %v",
+				fieldName, destType, source.Type()))
 		}
 	}
 
@@ -248,8 +238,8 @@ func mapField(source, destVal reflect.Value, i int, loose bool) error {
 				return nil
 			}
 
-			return fmt.Errorf("error mapping field: %s. SourceType: %v does not contain related field. DestType: %v",
-				fieldName, source.Type(), destType)
+			return errors.New(fmt.Sprintf("error mapping field: %s. SourceType: %v does not contain related field. DestType: %v",
+				fieldName, source.Type(), destType))
 		}
 
 		return mapValues(sourceField, destField, loose)

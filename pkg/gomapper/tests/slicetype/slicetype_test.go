@@ -40,6 +40,11 @@ type F struct {
 	CountInt *int
 }
 
+type G struct {
+	TestString string
+	Slice      string
+}
+
 func Test_From_Root(t *testing.T) {
 	size := 50
 	count := 5
@@ -125,5 +130,18 @@ func Test_Slice_Nil_When_Dest_NonPtr(t *testing.T) {
 	err := gomapper.Map(&source, &dest)
 
 	assert.Nil(t, err)
+	assert.Nil(t, dest.Slice)
+}
+
+func Test_Slice_Wrong_Type(t *testing.T) {
+	source := G{
+		TestString: "test",
+		Slice:      "wrong type",
+	}
+
+	var dest CNonPtrESlice
+	err := gomapper.Map(&source, &dest)
+
+	assert.NotNil(t, err)
 	assert.Nil(t, dest.Slice)
 }
