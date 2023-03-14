@@ -15,6 +15,6 @@ func isAnyNil(x any) bool {
 	return false
 }
 
-func reflectValueIsNil(value reflect.Value) bool {
-	return value.Type().Kind() == reflect.Ptr && value.IsNil()
+func isReflectValNil(value reflect.Value) bool {
+	return value.Kind() == reflect.Ptr && value.IsNil()
 }

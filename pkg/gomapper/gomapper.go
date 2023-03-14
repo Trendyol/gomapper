@@ -12,22 +12,22 @@ import (
 	"fmt"
 	"reflect"
 
-	"errors"
+	"github.com/pkg/errors"
 )
 
-type MapOptions struct {
-	// If this is false(default); It doesn't fail
-	// when the destination type contains fields not supplied by the source.
-	// If this is true; All fields in the
-	// destination object must exist in the source object.
+type Option struct {
+	// If this is false(default); It does not generate an error when the target type contains fields but these fields are not found in the source.
+	// If this is true; All fields in the destination object must exist in the source object.
+	// Also if this is true private destination fields must be supplied, that means if private destination field does not map automatically
+	// from the upper object hierarchy then it will produce an error.
 	// Object hierarchies with nested structs and slices are supported, as long as
 	// type types of nested structs/slices follow the same rules, i.e. all fields
 	// in destination structs must be found on the source struct.
 	Exact bool
 }
 
-func getDefaultMapOptions() *MapOptions {
-	return &MapOptions{
+func getDefaultOption() *Option {
+	return &Option{
 		Exact: false,
 	}
 }
@@ -36,8 +36,8 @@ func getDefaultMapOptions() *MapOptions {
 // If options does not provided it uses default map options.
 // Embedded/anonymous structs are supported.
 // Values that are not exported/not public will not be mapped.
-func Map(source, dest any, opts ...*MapOptions) error {
-	mapOptions, err := validateMapOptions(opts...)
+func Map(source, dest any, options ...*Option) error {
+	option, err := verifyMapOption(options...)
 	if err != nil {
 		return err
 	}
@@ -60,99 +60,84 @@ func Map(source, dest any, opts ...*MapOptions) error {
 		sourceVal = reflect.ValueOf(source).Elem()
 	}
 
-	var destVal = reflect.ValueOf(dest).Elem()
-
-	return mapValues(sourceVal, destVal, !mapOptions.Exact)
+	return mapValues(sourceVal, reflect.ValueOf(dest).Elem(), !option.Exact)
 }
 
-func validateMapOptions(opts ...*MapOptions) (*MapOptions, error) {
-	if len(opts) > 1 {
-		return nil, errors.New("function accepts only one option as a parameter")
+func verifyMapOption(options ...*Option) (*Option, error) {
+	if len(options) > 1 {
+		return nil, errors.New("only one option is accepted as a parameter")
 	}
 
-	var mapOptions *MapOptions
+	var option *Option
 
-	if len(opts) == 0 {
-		mapOptions = getDefaultMapOptions()
+	if len(options) == 0 {
+		option = getDefaultOption()
 	} else {
-		mapOptions = opts[0]
+		option = options[0]
 	}
 
-	return mapOptions, nil
+	return option, nil
 }
 
 func mapValues(sourceVal, destVal reflect.Value, loose bool) error {
-	destType := destVal.Type()
-
 	// If the types are equal, map to destination from the top.
 	// This can cause side effects, because pointer fields will point
-	// to the same structure. In practice we are using this tool for transfering
+	// to the same structure. In practice we are using this tool for transferring
 	// data between layers. Not using for deep copy purposes. This is acceptable.
-	if destVal.CanSet() && destType == sourceVal.Type() {
+	if destVal.CanSet() && destVal.Type() == sourceVal.Type() {
 		destVal.Set(sourceVal)
-
-		return nil
-	} else if destType.Kind() == reflect.Struct {
-		if sourceVal.Type().Kind() == reflect.Ptr {
-			if sourceVal.IsNil() {
-				// If source is nil, it maps to an empty struct.
-				sourceVal = reflect.New(sourceVal.Type().Elem())
-			}
+	} else if destVal.Kind() == reflect.Ptr {
+		if isReflectValNil(sourceVal) {
+			return nil
+		}
+		destValZeroPtr := reflect.New(destVal.Type().Elem())
+		if err := mapValues(sourceVal, destValZeroPtr.Elem(), loose); err != nil {
+			return err
+		}
+		destVal.Set(destValZeroPtr)
+	} else if destVal.Kind() == reflect.Struct {
+		if isReflectValNil(sourceVal) {
+			// If source is nil, make a new default value of source's type.
+			sourceVal = reflect.New(sourceVal.Type().Elem())
+		}
+		if sourceVal.Kind() == reflect.Ptr {
 			sourceVal = sourceVal.Elem()
+		}
+		if sourceVal.Kind() != reflect.Struct {
+			return errors.New("error mapping values: dest kind: struct, source kind: " + sourceVal.Kind().String())
 		}
 		for i := 0; i < destVal.NumField(); i++ {
 			if err := mapField(sourceVal, destVal, i, loose); err != nil {
-				if !loose {
-					return err
-				}
+				return err
 			}
 		}
-
-		return nil
-	} else if destType.Kind() == reflect.Ptr {
-		if reflectValueIsNil(sourceVal) {
+	} else if destVal.Kind() == reflect.Slice {
+		if isReflectValNil(sourceVal) {
 			return nil
 		}
-		val := reflect.New(destType.Elem())
-		if err := mapValues(sourceVal, val.Elem(), loose); err != nil {
-			return err
+		if sourceVal.Kind() == reflect.Ptr {
+			sourceVal = sourceVal.Elem()
 		}
-		destVal.Set(val)
-
-		return nil
-	} else if destType.Kind() == reflect.Slice {
+		if sourceVal.Kind() != reflect.Slice {
+			return errors.New("error mapping values: dest kind: slice, source kind: " + sourceVal.Kind().String())
+		}
 		return mapSlice(sourceVal, destVal, loose)
+	} else if destVal.Kind() == reflect.Map {
+		if isReflectValNil(sourceVal) {
+			return nil
+		}
+		if sourceVal.Kind() == reflect.Ptr {
+			sourceVal = sourceVal.Elem()
+		}
+		if sourceVal.Kind() != reflect.Map {
+			return errors.New("error mapping values: dest kind: map, source kind: " + sourceVal.Kind().String())
+		}
+		return mapMap(sourceVal, destVal, loose)
 	} else {
-		return errors.New("error mapping values: currently not supported")
+		return errors.New(fmt.Sprintf("error mapping values: types are not compatible: Source Type: %s, Dest Type: %s", sourceVal.Type().Name(), destVal.Type().Name()))
 	}
-}
-
-func mapSlice(sourceVal, destVal reflect.Value, loose bool) error {
-	destType := destVal.Type()
-	length := sourceVal.Len()
-	target := reflect.MakeSlice(destType, length, length)
-	for j := 0; j < length; j++ {
-		val := reflect.New(destType.Elem()).Elem()
-		if err := mapValues(sourceVal.Index(j), val, loose); err != nil {
-			return err
-		}
-		target.Index(j).Set(val)
-	}
-
-	if length == 0 {
-		if err := verifyArrayTypesAreCompatible(sourceVal, destVal, loose); err != nil {
-			return err
-		}
-	}
-	destVal.Set(target)
 
 	return nil
-}
-
-func verifyArrayTypesAreCompatible(sourceVal, destVal reflect.Value, loose bool) error {
-	dummyDest := reflect.New(reflect.PtrTo(destVal.Type()))
-	dummySource := reflect.MakeSlice(sourceVal.Type(), 1, 1)
-	return mapValues(dummySource, dummyDest.Elem(), loose)
 }
 
 func mapField(source, destVal reflect.Value, i int, loose bool) error {
@@ -172,8 +157,8 @@ func mapField(source, destVal reflect.Value, i int, loose bool) error {
 		if loose {
 			return nil
 		} else {
-			return fmt.Errorf("error mapping field: %s. Field can not set! DestType: %v SourceType: %v",
-				fieldName, destType, source.Type())
+			return errors.New(fmt.Sprintf("error mapping field: %s. Field can not set! DestType: %v SourceType: %v",
+				fieldName, destType, source.Type()))
 		}
 	}
 
@@ -190,8 +175,8 @@ func mapField(source, destVal reflect.Value, i int, loose bool) error {
 				return nil
 			}
 
-			return fmt.Errorf("error mapping field: %s. SourceType: %v does not contain related field. DestType: %v",
-				fieldName, source.Type(), destType)
+			return errors.New(fmt.Sprintf("error mapping field: %s. SourceType: %v does not contain related field. DestType: %v",
+				fieldName, source.Type(), destType))
 		}
 
 		return mapValues(sourceField, destField, loose)
@@ -203,9 +188,76 @@ func valueIsContainedInNilEmbeddedType(source reflect.Value, fieldName string) b
 	ix := structField.Index
 	if len(structField.Index) > 1 {
 		parentField := source.FieldByIndex(ix[:len(ix)-1])
-		if reflectValueIsNil(parentField) {
+		if isReflectValNil(parentField) {
 			return true
 		}
 	}
 	return false
+}
+
+func mapSlice(sourceVal, destVal reflect.Value, loose bool) error {
+	destType := destVal.Type()
+	sourceLength := sourceVal.Len()
+	target := reflect.MakeSlice(destType, sourceLength, sourceLength)
+
+	for i := 0; i < sourceLength; i++ {
+		val := reflect.New(destType.Elem()).Elem()
+		if err := mapValues(sourceVal.Index(i), val, loose); err != nil {
+			return err
+		}
+		target.Index(i).Set(val)
+	}
+
+	if sourceLength == 0 {
+		if err := verifySliceTypesAreCompatible(sourceVal, destVal, loose); err != nil {
+			return err
+		}
+	}
+
+	destVal.Set(target)
+	return nil
+}
+
+func verifySliceTypesAreCompatible(sourceVal, destVal reflect.Value, loose bool) error {
+	dummyDest := reflect.New(reflect.PtrTo(destVal.Type())).Elem()
+	dummySource := reflect.MakeSlice(sourceVal.Type(), 1, 1)
+	return mapValues(dummySource, dummyDest, loose)
+}
+
+func mapMap(sourceVal, destVal reflect.Value, loose bool) error {
+	sourceKeyType := sourceVal.Type().Key()
+	destType := destVal.Type()
+	destKeyType := destType.Key()
+
+	if sourceKeyType.Name() != destKeyType.Name() {
+		return errors.New(fmt.Sprintf("error mapping maps: map key types are not equal: Source Key Type: %s, Dest Key Type: %s", sourceKeyType.Name(), destKeyType.Name()))
+	}
+
+	sourceLength := sourceVal.Len()
+	targetMap := reflect.MakeMapWithSize(destType, sourceLength)
+
+	for _, key := range sourceVal.MapKeys() {
+		sourceElem := sourceVal.MapIndex(key)
+
+		destElem := reflect.New(destType.Elem()).Elem()
+		if err := mapValues(sourceElem, destElem, loose); err != nil {
+			return err
+		}
+		targetMap.SetMapIndex(key, destElem)
+	}
+
+	if sourceLength == 0 {
+		if err := verifyMapElemTypesAreCompatible(sourceVal, destVal, loose); err != nil {
+			return err
+		}
+	}
+
+	destVal.Set(targetMap)
+	return nil
+}
+
+func verifyMapElemTypesAreCompatible(sourceVal, destVal reflect.Value, loose bool) error {
+	dummyDestElem := reflect.New(destVal.Type().Elem()).Elem()
+	dummySourceElem := reflect.New(sourceVal.Type().Elem()).Elem()
+	return mapValues(dummySourceElem, dummyDestElem, loose)
 }

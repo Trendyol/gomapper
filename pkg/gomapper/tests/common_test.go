@@ -1,8 +1,9 @@
-package gomapper
+package tests
 
 import (
 	"testing"
 
+	"github.com/Trendyol/gomapper/pkg/gomapper"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -31,6 +32,14 @@ type D struct {
 	C *C
 }
 
+type E struct {
+	Name Z
+}
+
+type F struct {
+	Name *string
+}
+
 type C struct {
 	address string
 }
@@ -48,25 +57,25 @@ func Test_Source_Must_Not_Nil(t *testing.T) {
 
 	dest := &X{}
 
-	err := Map(source, dest)
+	err := gomapper.Map(source, dest)
 	assert.NotNil(t, err)
 
-	err = Map(nil, dest)
+	err = gomapper.Map(nil, dest)
 	assert.NotNil(t, err)
 }
 
 func Test_Dest_Must_Not_Nil(t *testing.T) {
 	dest := (*X)(nil)
 
-	err := Map(X{}, dest)
+	err := gomapper.Map(X{}, dest)
 	assert.NotNil(t, err)
 
-	err = Map(X{}, nil)
+	err = gomapper.Map(X{}, nil)
 	assert.NotNil(t, err)
 }
 
 func Test_Dest_Must_Be_Pointer(t *testing.T) {
-	err := Map(X{}, X{})
+	err := gomapper.Map(X{}, X{})
 	assert.NotNil(t, err)
 }
 
@@ -82,7 +91,7 @@ func Test_X_To_X_Map_Loose(t *testing.T) {
 
 	dest := &X{}
 
-	if err := Map(source, dest); err != nil {
+	if err := gomapper.Map(source, dest); err != nil {
 		t.Error(err.Error())
 		return
 	}
@@ -105,7 +114,7 @@ func Test_X_To_XPointerField_Map_Loose(t *testing.T) {
 
 	dest := &XPointerField{}
 
-	if err := Map(source, dest); err != nil {
+	if err := gomapper.Map(source, dest); err != nil {
 		t.Error(err)
 		return
 	}
@@ -131,7 +140,7 @@ func Test_X_To_XPointerField_Map(t *testing.T) {
 
 	dest := &XPointerField{}
 
-	err := Map(source, dest, &MapOptions{Exact: true})
+	err := gomapper.Map(source, dest, &gomapper.Option{Exact: true})
 	assert.NotNil(t, err)
 }
 
@@ -142,9 +151,34 @@ func Test_Y_To_Z_Map_Loose(t *testing.T) {
 
 	dest := &Z{}
 
-	if err := Map(source, dest); err != nil {
+	if err := gomapper.Map(source, dest); err != nil {
 		t.Error(err.Error())
 	}
 
 	assert.Equal(t, source.In.C.address, dest.In.C.address)
+}
+
+func Test_Mapping_Source_String_Field_To_Dest_Struct_Field_Should_Return_Error(t *testing.T) {
+	source := A{
+		Name: "istanbul",
+		zone: []string{},
+	}
+
+	dest := &E{}
+
+	err := gomapper.Map(source, dest)
+
+	assert.NotNil(t, err)
+}
+
+func Test_Mapping_Nil_Pointer_Source_String_Field_To_Dest_Struct_Field_Should_Return_Error(t *testing.T) {
+	source := F{
+		Name: nil,
+	}
+
+	dest := &E{}
+
+	err := gomapper.Map(source, dest)
+
+	assert.NotNil(t, err)
 }
