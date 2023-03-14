@@ -140,6 +140,61 @@ func mapValues(sourceVal, destVal reflect.Value, loose bool) error {
 	return nil
 }
 
+func mapField(source, destVal reflect.Value, i int, loose bool) error {
+	destType := destVal.Type()
+	fieldName := destType.Field(i).Name
+
+	defer func() {
+		if r := recover(); r != nil {
+			panic(fmt.Sprintf("error mapping field: %s. DestType: %v SourceType: %v Error: %v",
+				fieldName, destType, source.Type(), r))
+		}
+	}()
+
+	destField := destVal.Field(i)
+
+	if !destField.CanSet() {
+		if loose {
+			return nil
+		} else {
+			return errors.New(fmt.Sprintf("error mapping field: %s. Field can not set! DestType: %v SourceType: %v",
+				fieldName, destType, source.Type()))
+		}
+	}
+
+	if destType.Field(i).Anonymous {
+		return mapValues(source, destField, loose)
+	} else {
+		if valueIsContainedInNilEmbeddedType(source, fieldName) {
+			return nil
+		}
+
+		sourceField := source.FieldByName(fieldName)
+		if (sourceField == reflect.Value{}) {
+			if loose {
+				return nil
+			}
+
+			return errors.New(fmt.Sprintf("error mapping field: %s. SourceType: %v does not contain related field. DestType: %v",
+				fieldName, source.Type(), destType))
+		}
+
+		return mapValues(sourceField, destField, loose)
+	}
+}
+
+func valueIsContainedInNilEmbeddedType(source reflect.Value, fieldName string) bool {
+	structField, _ := source.Type().FieldByName(fieldName)
+	ix := structField.Index
+	if len(structField.Index) > 1 {
+		parentField := source.FieldByIndex(ix[:len(ix)-1])
+		if isReflectValNil(parentField) {
+			return true
+		}
+	}
+	return false
+}
+
 func mapSlice(sourceVal, destVal reflect.Value, loose bool) error {
 	destType := destVal.Type()
 	sourceLength := sourceVal.Len()
@@ -205,59 +260,4 @@ func verifyMapElemTypesAreCompatible(sourceVal, destVal reflect.Value, loose boo
 	dummyDestElem := reflect.New(destVal.Type().Elem()).Elem()
 	dummySourceElem := reflect.New(sourceVal.Type().Elem()).Elem()
 	return mapValues(dummySourceElem, dummyDestElem, loose)
-}
-
-func mapField(source, destVal reflect.Value, i int, loose bool) error {
-	destType := destVal.Type()
-	fieldName := destType.Field(i).Name
-
-	defer func() {
-		if r := recover(); r != nil {
-			panic(fmt.Sprintf("error mapping field: %s. DestType: %v SourceType: %v Error: %v",
-				fieldName, destType, source.Type(), r))
-		}
-	}()
-
-	destField := destVal.Field(i)
-
-	if !destField.CanSet() {
-		if loose {
-			return nil
-		} else {
-			return errors.New(fmt.Sprintf("error mapping field: %s. Field can not set! DestType: %v SourceType: %v",
-				fieldName, destType, source.Type()))
-		}
-	}
-
-	if destType.Field(i).Anonymous {
-		return mapValues(source, destField, loose)
-	} else {
-		if valueIsContainedInNilEmbeddedType(source, fieldName) {
-			return nil
-		}
-
-		sourceField := source.FieldByName(fieldName)
-		if (sourceField == reflect.Value{}) {
-			if loose {
-				return nil
-			}
-
-			return errors.New(fmt.Sprintf("error mapping field: %s. SourceType: %v does not contain related field. DestType: %v",
-				fieldName, source.Type(), destType))
-		}
-
-		return mapValues(sourceField, destField, loose)
-	}
-}
-
-func valueIsContainedInNilEmbeddedType(source reflect.Value, fieldName string) bool {
-	structField, _ := source.Type().FieldByName(fieldName)
-	ix := structField.Index
-	if len(structField.Index) > 1 {
-		parentField := source.FieldByIndex(ix[:len(ix)-1])
-		if isReflectValNil(parentField) {
-			return true
-		}
-	}
-	return false
 }
