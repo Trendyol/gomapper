@@ -2,7 +2,7 @@
 
 [![GoDoc](https://godoc.org/github.com/Trendyol/gomapper?status.svg)](https://godoc.org/github.com/Trendyol/gomapper)
 
-An auto mapping tool for Golang dtos. Basically it maps DTOs by field names.\
+An auto mapping tool for Golang DTOs. Basically it maps DTOs by field names.\
 (Originally inspired by https://github.com/stroiman/go-automapper)
 
 ### Important!
