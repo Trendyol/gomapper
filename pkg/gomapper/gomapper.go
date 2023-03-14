@@ -60,7 +60,7 @@ func Map(source, dest any, options ...*Option) error {
 		sourceVal = reflect.ValueOf(source).Elem()
 	}
 
-	return mapValues(sourceVal, reflect.ValueOf(dest).Elem(), !option.Exact)
+	return mapValues(sourceVal, reflect.ValueOf(dest).Elem(), option.Exact)
 }
 
 func verifyMapOption(options ...*Option) (*Option, error) {
@@ -79,7 +79,7 @@ func verifyMapOption(options ...*Option) (*Option, error) {
 	return option, nil
 }
 
-func mapValues(sourceVal, destVal reflect.Value, loose bool) error {
+func mapValues(sourceVal, destVal reflect.Value, exact bool) error {
 	// If the types are equal, map to destination from the top.
 	// This can cause side effects, because pointer fields will point
 	// to the same structure. In practice we are using this tool for transferring
@@ -91,7 +91,7 @@ func mapValues(sourceVal, destVal reflect.Value, loose bool) error {
 			return nil
 		}
 		destValZeroPtr := reflect.New(destVal.Type().Elem())
-		if err := mapValues(sourceVal, destValZeroPtr.Elem(), loose); err != nil {
+		if err := mapValues(sourceVal, destValZeroPtr.Elem(), exact); err != nil {
 			return err
 		}
 		destVal.Set(destValZeroPtr)
@@ -107,7 +107,7 @@ func mapValues(sourceVal, destVal reflect.Value, loose bool) error {
 			return errors.New("error mapping values: dest kind: struct, source kind: " + sourceVal.Kind().String())
 		}
 		for i := 0; i < destVal.NumField(); i++ {
-			if err := mapField(sourceVal, destVal, i, loose); err != nil {
+			if err := mapField(sourceVal, destVal, i, exact); err != nil {
 				return err
 			}
 		}
@@ -121,7 +121,7 @@ func mapValues(sourceVal, destVal reflect.Value, loose bool) error {
 		if sourceVal.Kind() != reflect.Slice {
 			return errors.New("error mapping values: dest kind: slice, source kind: " + sourceVal.Kind().String())
 		}
-		return mapSlice(sourceVal, destVal, loose)
+		return mapSlice(sourceVal, destVal, exact)
 	} else if destVal.Kind() == reflect.Map {
 		if isReflectValNil(sourceVal) {
 			return nil
@@ -132,7 +132,7 @@ func mapValues(sourceVal, destVal reflect.Value, loose bool) error {
 		if sourceVal.Kind() != reflect.Map {
 			return errors.New("error mapping values: dest kind: map, source kind: " + sourceVal.Kind().String())
 		}
-		return mapMap(sourceVal, destVal, loose)
+		return mapMap(sourceVal, destVal, exact)
 	} else {
 		return errors.New(fmt.Sprintf("error mapping values: types are not compatible: Source Type: %s, Dest Type: %s", sourceVal.Type().Name(), destVal.Type().Name()))
 	}
@@ -140,7 +140,7 @@ func mapValues(sourceVal, destVal reflect.Value, loose bool) error {
 	return nil
 }
 
-func mapField(source, destVal reflect.Value, i int, loose bool) error {
+func mapField(source, destVal reflect.Value, i int, exact bool) error {
 	destType := destVal.Type()
 	fieldName := destType.Field(i).Name
 
@@ -154,16 +154,16 @@ func mapField(source, destVal reflect.Value, i int, loose bool) error {
 	destField := destVal.Field(i)
 
 	if !destField.CanSet() {
-		if loose {
-			return nil
-		} else {
+		if exact {
 			return errors.New(fmt.Sprintf("error mapping field: %s. Field can not set! DestType: %v SourceType: %v",
 				fieldName, destType, source.Type()))
 		}
+
+		return nil
 	}
 
 	if destType.Field(i).Anonymous {
-		return mapValues(source, destField, loose)
+		return mapValues(source, destField, exact)
 	} else {
 		if valueIsContainedInNilEmbeddedType(source, fieldName) {
 			return nil
@@ -171,15 +171,15 @@ func mapField(source, destVal reflect.Value, i int, loose bool) error {
 
 		sourceField := source.FieldByName(fieldName)
 		if (sourceField == reflect.Value{}) {
-			if loose {
-				return nil
+			if exact {
+				return errors.New(fmt.Sprintf("error mapping field: %s. SourceType: %v does not contain related field. DestType: %v",
+					fieldName, source.Type(), destType))
 			}
 
-			return errors.New(fmt.Sprintf("error mapping field: %s. SourceType: %v does not contain related field. DestType: %v",
-				fieldName, source.Type(), destType))
+			return nil
 		}
 
-		return mapValues(sourceField, destField, loose)
+		return mapValues(sourceField, destField, exact)
 	}
 }
 
@@ -195,21 +195,21 @@ func valueIsContainedInNilEmbeddedType(source reflect.Value, fieldName string) b
 	return false
 }
 
-func mapSlice(sourceVal, destVal reflect.Value, loose bool) error {
+func mapSlice(sourceVal, destVal reflect.Value, exact bool) error {
 	destType := destVal.Type()
 	sourceLength := sourceVal.Len()
 	target := reflect.MakeSlice(destType, sourceLength, sourceLength)
 
 	for i := 0; i < sourceLength; i++ {
 		val := reflect.New(destType.Elem()).Elem()
-		if err := mapValues(sourceVal.Index(i), val, loose); err != nil {
+		if err := mapValues(sourceVal.Index(i), val, exact); err != nil {
 			return err
 		}
 		target.Index(i).Set(val)
 	}
 
 	if sourceLength == 0 {
-		if err := verifySliceTypesAreCompatible(sourceVal, destVal, loose); err != nil {
+		if err := verifySliceTypesAreCompatible(sourceVal, destVal, exact); err != nil {
 			return err
 		}
 	}
@@ -218,13 +218,13 @@ func mapSlice(sourceVal, destVal reflect.Value, loose bool) error {
 	return nil
 }
 
-func verifySliceTypesAreCompatible(sourceVal, destVal reflect.Value, loose bool) error {
+func verifySliceTypesAreCompatible(sourceVal, destVal reflect.Value, exact bool) error {
 	dummyDest := reflect.New(reflect.PtrTo(destVal.Type())).Elem()
 	dummySource := reflect.MakeSlice(sourceVal.Type(), 1, 1)
-	return mapValues(dummySource, dummyDest, loose)
+	return mapValues(dummySource, dummyDest, exact)
 }
 
-func mapMap(sourceVal, destVal reflect.Value, loose bool) error {
+func mapMap(sourceVal, destVal reflect.Value, exact bool) error {
 	sourceKeyType := sourceVal.Type().Key()
 	destType := destVal.Type()
 	destKeyType := destType.Key()
@@ -240,14 +240,14 @@ func mapMap(sourceVal, destVal reflect.Value, loose bool) error {
 		sourceElem := sourceVal.MapIndex(key)
 
 		destElem := reflect.New(destType.Elem()).Elem()
-		if err := mapValues(sourceElem, destElem, loose); err != nil {
+		if err := mapValues(sourceElem, destElem, exact); err != nil {
 			return err
 		}
 		targetMap.SetMapIndex(key, destElem)
 	}
 
 	if sourceLength == 0 {
-		if err := verifyMapElemTypesAreCompatible(sourceVal, destVal, loose); err != nil {
+		if err := verifyMapElemTypesAreCompatible(sourceVal, destVal, exact); err != nil {
 			return err
 		}
 	}
@@ -256,8 +256,8 @@ func mapMap(sourceVal, destVal reflect.Value, loose bool) error {
 	return nil
 }
 
-func verifyMapElemTypesAreCompatible(sourceVal, destVal reflect.Value, loose bool) error {
+func verifyMapElemTypesAreCompatible(sourceVal, destVal reflect.Value, exact bool) error {
 	dummyDestElem := reflect.New(destVal.Type().Elem()).Elem()
 	dummySourceElem := reflect.New(sourceVal.Type().Elem()).Elem()
-	return mapValues(dummySourceElem, dummyDestElem, loose)
+	return mapValues(dummySourceElem, dummyDestElem, exact)
 }
