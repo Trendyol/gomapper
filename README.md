@@ -6,7 +6,7 @@ An auto mapping tool for Golang DTOs. Basically it maps DTOs by field names.\
 (Originally inspired by https://github.com/stroiman/go-automapper)
 
 ### Important!
-Please be very careful when using this tool for deep copying of objects. This tool is not intended for deep copying. While moving the source to the destination, it carries the same reference (pointer) types only by reference. It would be reasonable to use it only by considering the data transfer object (DTO) feature between software layers.
+Please be very careful when using this tool for deep copying of objects. This tool is not intended for deep copying. While moving the source to the destination, it carries the same reference (pointer) types only by reference. It would only make sense to use it as a data transfer object (DTO) between software layers.
 
 ### Example:
 ```go
