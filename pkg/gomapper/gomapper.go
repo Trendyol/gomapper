@@ -16,7 +16,7 @@ import (
 )
 
 type Option struct {
-	// If this is false(default); It does not generate an error when the target type contains fields but these fields are not found in the source.
+	// If this is false (default); It does not generate an error when the target type contains fields but these fields are not found in the source.
 	// If this is true; All fields in the destination object must exist in the source object.
 	// Also if this is true private destination fields must be supplied, that means if private destination field does not map automatically
 	// from the upper object hierarchy then it will produce an error.
@@ -36,22 +36,28 @@ func getDefaultOption() *Option {
 // If options does not provided it uses default map options.
 // Embedded/anonymous structs are supported.
 // Values that are not exported/not public will not be mapped.
-func Map(source, dest any, options ...*Option) error {
+func Map(source, dest any, options ...*Option) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("gomapper: panic recovered as error: details: %v", r)
+		}
+	}()
+
 	option, err := verifyMapOption(options...)
 	if err != nil {
 		return err
 	}
 
 	if isAnyNil(source) {
-		return errors.New("source must not be nil")
+		return errors.New("gomapper: source must not be nil")
 	}
 
 	if isAnyNil(dest) {
-		return errors.New("dest must not be nil")
+		return errors.New("gomapper: dest must not be nil")
 	}
 
 	if reflect.TypeOf(dest).Kind() != reflect.Ptr {
-		return errors.New("dest must be a pointer type")
+		return errors.New("gomapper: dest must be a pointer type")
 	}
 
 	sourceVal := reflect.ValueOf(source)
@@ -63,20 +69,23 @@ func Map(source, dest any, options ...*Option) error {
 	return mapValues(sourceVal, reflect.ValueOf(dest).Elem(), option.Exact)
 }
 
+// Same as Map function but panics in case of any error instead of returning error.
+func MapP(source, dest any, options ...*Option) {
+	if err := Map(source, dest, options...); err != nil {
+		panic(err)
+	}
+}
+
 func verifyMapOption(options ...*Option) (*Option, error) {
-	if len(options) > 1 {
-		return nil, errors.New("only one option is accepted as a parameter")
-	}
-
-	var option *Option
-
 	if len(options) == 0 {
-		option = getDefaultOption()
-	} else {
-		option = options[0]
+		return getDefaultOption(), nil
 	}
 
-	return option, nil
+	if len(options) > 1 {
+		return nil, errors.New("gomapper: maximum one mapping option is accepted as a parameter")
+	}
+
+	return options[0], nil
 }
 
 func mapValues(sourceVal, destVal reflect.Value, exact bool) error {
@@ -86,7 +95,10 @@ func mapValues(sourceVal, destVal reflect.Value, exact bool) error {
 	// data between layers. Not using for deep copy purposes. This is acceptable.
 	if destVal.CanSet() && destVal.Type() == sourceVal.Type() {
 		destVal.Set(sourceVal)
-	} else if destVal.Kind() == reflect.Ptr {
+		return nil
+	}
+
+	if destVal.Kind() == reflect.Ptr {
 		if isReflectValNil(sourceVal) {
 			return nil
 		}
@@ -95,7 +107,10 @@ func mapValues(sourceVal, destVal reflect.Value, exact bool) error {
 			return err
 		}
 		destVal.Set(destValZeroPtr)
-	} else if destVal.Kind() == reflect.Struct {
+		return nil
+	}
+
+	if destVal.Kind() == reflect.Struct {
 		if isReflectValNil(sourceVal) {
 			// If source is nil, make a new default value of source's type.
 			sourceVal = reflect.New(sourceVal.Type().Elem())
@@ -104,14 +119,17 @@ func mapValues(sourceVal, destVal reflect.Value, exact bool) error {
 			sourceVal = sourceVal.Elem()
 		}
 		if sourceVal.Kind() != reflect.Struct {
-			return errors.New("error mapping values: dest kind: struct, source kind: " + sourceVal.Kind().String())
+			return errors.New("gomapper: error mapping values: dest kind: struct, source kind: " + sourceVal.Kind().String())
 		}
 		for i := 0; i < destVal.NumField(); i++ {
 			if err := mapField(sourceVal, destVal, i, exact); err != nil {
 				return err
 			}
 		}
-	} else if destVal.Kind() == reflect.Slice {
+		return nil
+	}
+
+	if destVal.Kind() == reflect.Slice {
 		if isReflectValNil(sourceVal) {
 			return nil
 		}
@@ -119,10 +137,12 @@ func mapValues(sourceVal, destVal reflect.Value, exact bool) error {
 			sourceVal = sourceVal.Elem()
 		}
 		if sourceVal.Kind() != reflect.Slice {
-			return errors.New("error mapping values: dest kind: slice, source kind: " + sourceVal.Kind().String())
+			return errors.New("gomapper: error mapping values: dest kind: slice, source kind: " + sourceVal.Kind().String())
 		}
 		return mapSlice(sourceVal, destVal, exact)
-	} else if destVal.Kind() == reflect.Map {
+	}
+
+	if destVal.Kind() == reflect.Map {
 		if isReflectValNil(sourceVal) {
 			return nil
 		}
@@ -130,14 +150,12 @@ func mapValues(sourceVal, destVal reflect.Value, exact bool) error {
 			sourceVal = sourceVal.Elem()
 		}
 		if sourceVal.Kind() != reflect.Map {
-			return errors.New("error mapping values: dest kind: map, source kind: " + sourceVal.Kind().String())
+			return errors.New("gomapper: error mapping values: dest kind: map, source kind: " + sourceVal.Kind().String())
 		}
 		return mapMap(sourceVal, destVal, exact)
-	} else {
-		return errors.New(fmt.Sprintf("error mapping values: types are not compatible: Source Type: %s, Dest Type: %s", sourceVal.Type().Name(), destVal.Type().Name()))
 	}
 
-	return nil
+	return errors.New(fmt.Sprintf("gomapper: error mapping values: types are not compatible: Source Type: %s, Dest Type: %s", sourceVal.Type().Name(), destVal.Type().Name()))
 }
 
 func mapField(source, destVal reflect.Value, i int, exact bool) error {
@@ -146,7 +164,7 @@ func mapField(source, destVal reflect.Value, i int, exact bool) error {
 
 	defer func() {
 		if r := recover(); r != nil {
-			panic(fmt.Sprintf("error mapping field: %s. DestType: %v SourceType: %v Error: %v",
+			panic(fmt.Sprintf("gomapper: error mapping field: %s. DestType: %v SourceType: %v Error: %v",
 				fieldName, destType, source.Type(), r))
 		}
 	}()
@@ -155,7 +173,7 @@ func mapField(source, destVal reflect.Value, i int, exact bool) error {
 
 	if !destField.CanSet() {
 		if exact {
-			return errors.New(fmt.Sprintf("error mapping field: %s. Field can not set! DestType: %v SourceType: %v",
+			return errors.New(fmt.Sprintf("gomapper: error mapping field: %s. Field can not set! DestType: %v SourceType: %v",
 				fieldName, destType, source.Type()))
 		}
 
@@ -164,23 +182,23 @@ func mapField(source, destVal reflect.Value, i int, exact bool) error {
 
 	if destType.Field(i).Anonymous {
 		return mapValues(source, destField, exact)
-	} else {
-		if valueIsContainedInNilEmbeddedType(source, fieldName) {
-			return nil
-		}
-
-		sourceField := source.FieldByName(fieldName)
-		if (sourceField == reflect.Value{}) {
-			if exact {
-				return errors.New(fmt.Sprintf("error mapping field: %s. SourceType: %v does not contain related field. DestType: %v",
-					fieldName, source.Type(), destType))
-			}
-
-			return nil
-		}
-
-		return mapValues(sourceField, destField, exact)
 	}
+
+	if valueIsContainedInNilEmbeddedType(source, fieldName) {
+		return nil
+	}
+
+	sourceField := source.FieldByName(fieldName)
+	if (sourceField == reflect.Value{}) {
+		if exact {
+			return errors.New(fmt.Sprintf("gomapper: error mapping field: %s. SourceType: %v does not contain related field. DestType: %v",
+				fieldName, source.Type(), destType))
+		}
+
+		return nil
+	}
+
+	return mapValues(sourceField, destField, exact)
 }
 
 func valueIsContainedInNilEmbeddedType(source reflect.Value, fieldName string) bool {
@@ -230,7 +248,7 @@ func mapMap(sourceVal, destVal reflect.Value, exact bool) error {
 	destKeyType := destType.Key()
 
 	if sourceKeyType.Name() != destKeyType.Name() {
-		return errors.New(fmt.Sprintf("error mapping maps: map key types are not equal: Source Key Type: %s, Dest Key Type: %s", sourceKeyType.Name(), destKeyType.Name()))
+		return errors.New(fmt.Sprintf("gomapper: error mapping maps: map key types are not equal: Source Key Type: %s, Dest Key Type: %s", sourceKeyType.Name(), destKeyType.Name()))
 	}
 
 	sourceLength := sourceVal.Len()
