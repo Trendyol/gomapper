@@ -74,6 +74,13 @@ func Test_Dest_Must_Not_Nil(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
+func Test_Dest_Must_Not_Nil_Panic(t *testing.T) {
+	dest := (*X)(nil)
+
+	assert.Panics(t, func() { gomapper.MapP(X{}, dest) })
+	assert.Panics(t, func() { gomapper.MapP(X{}, nil) })
+}
+
 func Test_Dest_Must_Be_Pointer(t *testing.T) {
 	err := gomapper.Map(X{}, X{})
 	assert.NotNil(t, err)
