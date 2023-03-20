@@ -39,7 +39,7 @@ func getDefaultOption() *Option {
 func Map(source, dest any, options ...*Option) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("gomapper: panic recovered as error: details: %v", r)
+			err = fmt.Errorf("gomapper: unexpected error occurred: %v", r)
 		}
 	}()
 
