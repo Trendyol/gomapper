@@ -147,7 +147,7 @@ func Test_X_To_XPointerField_Map(t *testing.T) {
 
 	dest := &XPointerField{}
 
-	err := gomapper.Map(source, dest, &gomapper.Option{Exact: true})
+	err := gomapper.Map(source, dest, gomapper.Option{Exact: true})
 	assert.NotNil(t, err)
 }
 
