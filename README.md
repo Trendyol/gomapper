@@ -29,8 +29,8 @@ Please be very careful when using this tool for deep copying of objects. This to
         Location *Location
     }
 
-    // Use Map function:
-
+    // Declare your variables:
+    
     src := Source{
         Ui64: 123,
         i64:  321,
@@ -41,6 +41,8 @@ Please be very careful when using this tool for deep copying of objects. This to
     }
 
     dest := Destination{}
+
+    // Use Map function:
 
     if err := gomapper.Map(src, &dest); err != nil {
         // handle mapping error
