@@ -1,3 +1,5 @@
+
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/Trendyol/gomapper/badge)](https://scorecard.dev/viewer/?uri=github.com/Trendyol/gomapper)
 # gomapper
 
 [![GoDoc](https://godoc.org/github.com/Trendyol/gomapper?status.svg)](https://godoc.org/github.com/Trendyol/gomapper)
